@@ -8,8 +8,8 @@ app = FastAPI(title="AI Logo Generator API", version="1.0.0")
 # Render එකේ Environment Variables වලට දාන්න
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
-# 🔴 මෙතන තමයි වෙනස් වුනේ (අලුත් Hugging Face Router ලින්ක් එක)
-API_URL = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
+# 🔴 අලුත් Stable Diffusion XL Model එක (පරණ FLUX එක වෙනුවට)
+API_URL = "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0"
 
 HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
 

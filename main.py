@@ -1,12 +1,13 @@
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import Response
 import requests
+import urllib.parse
+import random
 import os
-import base64
 
-app = FastAPI(title="AI Logo Generator API", version="6.0.0")
+app = FastAPI(title="AI Logo Generator API", version="8.0.0")
 
-TOGETHER_API_KEY = os.environ.get("TOGETHER_API_KEY")
+POLLINATIONS_API_KEY = os.environ.get("POLLINATIONS_API_KEY")
 
 
 @app.get("/")
@@ -23,38 +24,26 @@ def generate_ai_logo(
         "high quality, no 3d, no realistic, no photo"
     )
 ):
-    if not TOGETHER_API_KEY:
-        raise HTTPException(status_code=500, detail="TOGETHER_API_KEY not set")
+    if not POLLINATIONS_API_KEY:
+        raise HTTPException(status_code=500, detail="POLLINATIONS_API_KEY not set")
 
     full_prompt = f"{prompt}, {style}"
+    encoded_prompt = urllib.parse.quote(full_prompt)
+    seed = random.randint(1, 999999)
 
-    api_url = "https://api.together.xyz/v1/images/generations"
-    headers = {
-        "Authorization": f"Bearer {TOGETHER_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "black-forest-labs/FLUX.1-schnell",
-        "prompt": full_prompt,
-        "width": 1024,
-        "height": 1024,
-        "steps": 4,
-        "n": 1,
-        "response_format": "b64_json"
-    }
+    api_url = (
+        f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+        f"?width=1024&height=1024"
+        f"&nologo=true&private=true&model=flux&seed={seed}&enhance=true"
+        f"&key={POLLINATIONS_API_KEY}"
+    )
 
     try:
-        response = requests.post(api_url, headers=headers, json=payload, timeout=90)
+        response = requests.get(api_url, timeout=90)
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
-
-        result = response.json()
-        img_base64 = result["data"][0]["b64_json"]
-        img_bytes = base64.b64decode(img_base64)
-
-        return Response(content=img_bytes, media_type="image/png")
-
+        return Response(content=response.content, media_type="image/jpeg")
     except requests.exceptions.Timeout:
-        raise HTTPException(status_code=504, detail="AI took too long")
+        raise HTTPException(status_code=504, detail="AI took too long. Try again.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -2,8 +2,9 @@ from fastapi import FastAPI, Query
 from fastapi.responses import Response
 import requests
 import urllib.parse
+import random
 
-app = FastAPI(title="AI Logo Generator API", version="3.0.0")
+app = FastAPI(title="AI Logo Generator API", version="4.0.0")
 
 @app.get("/")
 def health():
@@ -12,17 +13,23 @@ def health():
 @app.get("/ai-logo")
 def generate_ai_logo(
     prompt: str = Query(..., description="උදා: 'Nima Tech'"),
-    style: str = Query("minimalist vector logo, flat design, clean lines, simple, white background, professional brand mark, high quality, no 3d, no realistic")
+    style: str = Query("logo design, minimalist, flat vector, clean lines, simple icon, centered, white background, professional branding, high quality, vivid colors, no text, no letters, no words, no 3d, no realistic, no photo")
 ):
-    # 1. Prompt එක හදමු (ලස්සන, පැතලි, නවීන ලොගෝ එකක් එන්න)
+    # 1. Prompt එක හදමු
     full_prompt = f"{prompt}, {style}"
     encoded_prompt = urllib.parse.quote(full_prompt)
     
-    # 2. 🔴 Watermark එක අයින් කරන්න &nologo=true සහ හොඳම model එක (flux) දාමු
-    api_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&model=flux"
+    # 2. Random seed එකක් දාමු (හැම පාරම අලුත් design එකක් එන්න)
+    seed = random.randint(1, 999999)
+    
+    # 3. 🔴 Watermark අයින් කරන්න, හොඳම model එක (flux), සහ අලුත් seed එක
+    api_url = (
+        f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+        f"?width=1024&height=1024"
+        f"&nologo=true&model=flux&seed={seed}&enhance=true"
+    )
     
     try:
-        # AI එකට image එක හදන්න වෙලා යන නිසා timeout එක 90 කරා
         response = requests.get(api_url, timeout=90)
         
         if response.status_code != 200:

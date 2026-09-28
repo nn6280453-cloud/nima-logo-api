@@ -1,81 +1,47 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
-from PIL import Image, ImageDraw, ImageFont
-import io
+import requests
+import os
 
-app = FastAPI(title="Logo Generator API", version="1.0.0")
+app = FastAPI(title="AI Logo Generator API", version="1.0.0")
 
+# Render එකේ Environment Variables වලට දාන්න
+HF_TOKEN = os.environ.get("HF_TOKEN")
 
-def hex_to_rgb(h: str):
-    h = h.lstrip("#")
-    if len(h) == 3:
-        h = "".join(c * 2 for c in h)
-    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+# ශීඝ්‍රතම සහ නොමිලේ වැඩ කරන AI Model එක (Flux.1-schnell)
+API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
 
-
-def render_logo(text: str, bg: str, fg: str, shape: str, size: int) -> Image.Image:
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    bg_rgba = hex_to_rgb(bg) + (255,)
-
-    if shape == "circle":
-        draw.ellipse((0, 0, size - 1, size - 1), fill=bg_rgba)
-    elif shape == "rounded":
-        draw.rounded_rectangle((0, 0, size - 1, size - 1), radius=size // 6, fill=bg_rgba)
-    else:
-        draw.rectangle((0, 0, size - 1, size - 1), fill=bg_rgba)
-
-    words = [w for w in text.strip().split() if w]
-    if not words:
-        initials = "?"
-    elif len(words) == 1:
-        initials = words[0][:2].upper()
-    else:
-        initials = (words[0][0] + words[1][0]).upper()
-
-    font = ImageFont.load_default(size=int(size * 0.35))
-    bbox = draw.textbbox((0, 0), initials, font=font)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    draw.text(
-        ((size - tw) / 2 - bbox[0], (size - th) / 2 - bbox[1]),
-        initials, font=font, fill=hex_to_rgb(fg) + (255,),
-    )
-    return img
-
-
-class LogoRequest(BaseModel):
-    text: str = Field(..., min_length=1, max_length=40)
-    bg: str = "#0f172a"
-    fg: str = "#38bdf8"
-    shape: str = "circle"        # circle | rounded | square
-    size: int = Field(512, ge=64, le=1024)
+HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
 
 
 @app.get("/")
 def health():
-    return {"status": "ok", "service": "logo-api"}
+    return {"status": "ok", "service": "ai-logo-api"}
 
 
-@app.post("/logo")
-def logo_post(req: LogoRequest):
-    img = render_logo(req.text, req.bg, req.fg, req.shape, req.size)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return Response(content=buf.read(), media_type="image/png")
-
-
-@app.get("/logo")
-def logo_get(
-    text: str = Query(..., min_length=1, max_length=40),
-    bg: str = "#0f172a",
-    fg: str = "#38bdf8",
-    shape: str = "circle",
-    size: int = Query(512, ge=64, le=1024),
+@app.get("/ai-logo")
+def generate_ai_logo(
+    prompt: str = Query(..., description="උදා: 'minimalist tech logo for Nima'"),
+    style: str = Query("flat vector, clean, minimalist, white background, professional logo design", description="Logo style")
 ):
-    img = render_logo(text, bg, fg, shape, size)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return Response(content=buf.read(), media_type="image/png")
+    if not HF_TOKEN:
+        raise HTTPException(status_code=500, detail="HF_TOKEN not set in Render environment variables")
+
+    # Full prompt එක හදමු
+    full_prompt = f"{prompt}, {style}, high quality, 4k"
+
+    payload = {"inputs": full_prompt}
+
+    try:
+        response = requests.post(API_URL, headers=HEADERS, json=payload, timeout=60)
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="AI model took too long to respond")
+
+    # Model එක cold start වෙනවා නම් 503 එවනවා
+    if response.status_code == 503:
+        raise HTTPException(status_code=503, detail="AI model is loading. Please retry in 20-30 seconds.")
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+
+    return Response(content=response.content, media_type="image/png")

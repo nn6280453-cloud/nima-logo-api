@@ -3,7 +3,7 @@ from fastapi.responses import Response
 import requests
 import urllib.parse
 
-app = FastAPI(title="AI Logo Generator API", version="2.0.0")
+app = FastAPI(title="AI Logo Generator API", version="3.0.0")
 
 @app.get("/")
 def health():
@@ -11,15 +11,15 @@ def health():
 
 @app.get("/ai-logo")
 def generate_ai_logo(
-    prompt: str = Query(..., description="උදා: 'minimalist tech logo for Nima'"),
-    style: str = Query("flat vector, clean, minimalist, white background, professional logo design")
+    prompt: str = Query(..., description="උදා: 'Nima Tech'"),
+    style: str = Query("minimalist vector logo, flat design, clean lines, simple, white background, professional brand mark, high quality, no 3d, no realistic")
 ):
-    # Prompt එක හදලා URL එකට ගැලපෙන විදියට encode කරමු
-    full_prompt = f"{prompt}, {style}, high quality, 4k"
+    # 1. Prompt එක හදමු (ලස්සන, පැතලි, නවීන ලොගෝ එකක් එන්න)
+    full_prompt = f"{prompt}, {style}"
     encoded_prompt = urllib.parse.quote(full_prompt)
     
-    # 🔴 නොමිලේ වැඩ කරන Pollinations AI ලින්ක් එක (Token අවශ්‍ය නැත)
-    api_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
+    # 2. 🔴 Watermark එක අයින් කරන්න &nologo=true සහ හොඳම model එක (flux) දාමු
+    api_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&model=flux"
     
     try:
         # AI එකට image එක හදන්න වෙලා යන නිසා timeout එක 90 කරා

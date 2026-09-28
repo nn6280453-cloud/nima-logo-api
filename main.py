@@ -6,7 +6,7 @@ import os
 import base64
 import io
 
-app = FastAPI(title="AI Logo Generator API", version="14.0.0")
+app = FastAPI(title="AI Logo Generator API", version="15.0.0")
 
 CF_ACCOUNT_ID = os.environ.get("CF_ACCOUNT_ID")
 CF_API_TOKEN = os.environ.get("CF_API_TOKEN")
@@ -14,7 +14,6 @@ CF_API_TOKEN = os.environ.get("CF_API_TOKEN")
 MODEL = "@cf/stabilityai/stable-diffusion-xl-base-1.0"
 API_URL = f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT_ID}/ai/run/{MODEL}"
 
-# Font එක download කරමු
 FONT_URL = "https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat-Bold.ttf"
 FONT_PATH = "Montserrat-Bold.ttf"
 
@@ -60,7 +59,6 @@ def generate_ai_logo(
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
 
-        # Image එක ගමු
         content_type = response.headers.get("content-type", "")
         if "image" in content_type:
             img_bytes = response.content
@@ -71,33 +69,45 @@ def generate_ai_logo(
             else:
                 raise HTTPException(status_code=500, detail=f"Unexpected response: {result}")
 
-        # Text add කරන්නද?
+        # ✅ අලුත් text block එක
         if add_text:
             img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
             w, h = img.size
 
-            # පහළින් නම ලියන්න ඉඩ තියෙනවා. ඒ නිසා උඩට ටිකක් තල්ලු කරමු.
-            new_h = int(h * 1.15)
+            new_h = int(h * 1.18)
             new_img = Image.new("RGBA", (w, new_h), (255, 255, 255, 255))
             new_img.paste(img, (0, 0))
 
             draw = ImageDraw.Draw(new_img)
 
-            # Font එක load කරමු
             try:
-                font = ImageFont.truetype(FONT_PATH, int(w * 0.07))
+                font = ImageFont.truetype(FONT_PATH, int(w * 0.06))
             except:
-                font = ImageFont.load_default(size=int(w * 0.07))
+                font = ImageFont.load_default(size=int(w * 0.06))
 
-            # නම center කරමු
             text = prompt.upper()
-            bbox = draw.textbbox((0, 0), text, font=font)
-            tw = bbox[2] - bbox[0]
-            x = (w - tw) / 2
-            y = h + int(h * 0.02)
+            letter_spacing = int(w * 0.015)
+            total_width = 0
+            letters = []
+            for ch in text:
+                bbox_ch = draw.textbbox((0, 0), ch, font=font)
+                ch_w = bbox_ch[2] - bbox_ch[0]
+                letters.append((ch, ch_w))
+                total_width += ch_w + letter_spacing
+            total_width -= letter_spacing
 
-            # Text එක ලියමු (තද අළු පාටින්)
-            draw.text((x, y), text, font=font, fill=(30, 30, 40, 255))
+            x = (w - total_width) / 2
+            y = h + int(h * 0.025)
+
+            for ch, ch_w in letters:
+                draw.text((x, y), ch, font=font, fill=(25, 35, 55, 255))
+                x += ch_w + letter_spacing
+
+            line_y = int(y + h * 0.085)
+            line_x1 = int(w * 0.35)
+            line_x2 = int(w * 0.65)
+            line_color = (150, 160, 175, 200)
+            draw.line([(line_x1, line_y), (line_x2, line_y)], fill=line_color, width=max(1, int(w * 0.003)))
 
             buf = io.BytesIO()
             new_img.save(buf, format="PNG")

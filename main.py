@@ -8,8 +8,8 @@ app = FastAPI(title="AI Logo Generator API", version="1.0.0")
 # Render එකේ Environment Variables වලට දාන්න
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
-# ශීඝ්‍රතම සහ නොමිලේ වැඩ කරන AI Model එක (Flux.1-schnell)
-API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+# 🔴 මෙතන තමයි වෙනස් වුනේ (අලුත් Hugging Face Router ලින්ක් එක)
+API_URL = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
 
 HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
 
@@ -33,9 +33,12 @@ def generate_ai_logo(
     payload = {"inputs": full_prompt}
 
     try:
-        response = requests.post(API_URL, headers=HEADERS, json=payload, timeout=60)
+        # Timeout එක 90 ට වැඩි කළා (AI image හදන්න ටිකක් වෙලා යන නිසා)
+        response = requests.post(API_URL, headers=HEADERS, json=payload, timeout=90)
     except requests.exceptions.Timeout:
         raise HTTPException(status_code=504, detail="AI model took too long to respond")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Connection error: {str(e)}")
 
     # Model එක cold start වෙනවා නම් 503 එවනවා
     if response.status_code == 503:

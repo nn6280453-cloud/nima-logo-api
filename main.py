@@ -1,50 +1,36 @@
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query
 from fastapi.responses import Response
 import requests
-import os
+import urllib.parse
 
-app = FastAPI(title="AI Logo Generator API", version="1.0.0")
-
-# Render එකේ Environment Variables වලට දාන්න
-HF_TOKEN = os.environ.get("HF_TOKEN")
-
-# 🔴 අලුත් Stable Diffusion XL Model එක (පරණ FLUX එක වෙනුවට)
-API_URL = "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0"
-
-HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
-
+app = FastAPI(title="AI Logo Generator API", version="2.0.0")
 
 @app.get("/")
 def health():
     return {"status": "ok", "service": "ai-logo-api"}
 
-
 @app.get("/ai-logo")
 def generate_ai_logo(
     prompt: str = Query(..., description="උදා: 'minimalist tech logo for Nima'"),
-    style: str = Query("flat vector, clean, minimalist, white background, professional logo design", description="Logo style")
+    style: str = Query("flat vector, clean, minimalist, white background, professional logo design")
 ):
-    if not HF_TOKEN:
-        raise HTTPException(status_code=500, detail="HF_TOKEN not set in Render environment variables")
-
-    # Full prompt එක හදමු
+    # Prompt එක හදලා URL එකට ගැලපෙන විදියට encode කරමු
     full_prompt = f"{prompt}, {style}, high quality, 4k"
-
-    payload = {"inputs": full_prompt}
-
+    encoded_prompt = urllib.parse.quote(full_prompt)
+    
+    # 🔴 නොමිලේ වැඩ කරන Pollinations AI ලින්ක් එක (Token අවශ්‍ය නැත)
+    api_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
+    
     try:
-        # Timeout එක 90 ට වැඩි කළා (AI image හදන්න ටිකක් වෙලා යන නිසා)
-        response = requests.post(API_URL, headers=HEADERS, json=payload, timeout=90)
+        # AI එකට image එක හදන්න වෙලා යන නිසා timeout එක 90 කරා
+        response = requests.get(api_url, timeout=90)
+        
+        if response.status_code != 200:
+            return Response(content=f"Error from AI provider: {response.text}", status_code=response.status_code)
+            
+        return Response(content=response.content, media_type="image/jpeg")
+        
     except requests.exceptions.Timeout:
-        raise HTTPException(status_code=504, detail="AI model took too long to respond")
+        return Response(content="AI model took too long to respond. Please try again.", status_code=504)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Connection error: {str(e)}")
-
-    # Model එක cold start වෙනවා නම් 503 එවනවා
-    if response.status_code == 503:
-        raise HTTPException(status_code=503, detail="AI model is loading. Please retry in 20-30 seconds.")
-
-    if response.status_code != 200:
-        raise HTTPException(status_code=response.status_code, detail=response.text)
-
-    return Response(content=response.content, media_type="image/png")
+        return Response(content=f"Connection error: {str(e)}", status_code=500)
